@@ -7,7 +7,7 @@ has already validated the command before it reaches here.
 import argparse
 import subprocess
 import time
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 

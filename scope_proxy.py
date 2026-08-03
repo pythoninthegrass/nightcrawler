@@ -5,14 +5,13 @@ Sits between the agent and kali-server-mcp, validating every command.
 
 import argparse
 import json
-import yaml
-from flask import Flask, request, jsonify
 import requests
-
-from proxy.scope import ScopeValidator
+import yaml
+from flask import Flask, jsonify, request
 from proxy.command_filter import check_command
-from proxy.rate_limiter import RateLimiter
 from proxy.logger import AuditLogger
+from proxy.rate_limiter import RateLimiter
+from proxy.scope import ScopeValidator
 
 app = Flask(__name__)
 
@@ -43,7 +42,8 @@ def _refresh_scope_if_needed():
         return
     _scope_last_refresh = now
     try:
-        import subprocess as _sp, re as _re
+        import re as _re
+        import subprocess as _sp
         result = _sp.run(["ip", "-4", "addr", "show", "wlan0"],
                          capture_output=True, text=True, timeout=5)
         m = _re.search(r'inet (\d+\.\d+\.\d+\.\d+)/(\d+)', result.stdout)
@@ -178,7 +178,8 @@ def main():
     excluded_hosts = mission["scope"].get("excluded_hosts", [])
     _scope_is_auto = scope_networks == ["auto"] or "auto" in scope_networks
     if _scope_is_auto:
-        import subprocess, re
+        import re
+        import subprocess
         try:
             result = subprocess.run(["ip", "-4", "addr", "show", "wlan0"],
                                     capture_output=True, text=True, timeout=5)

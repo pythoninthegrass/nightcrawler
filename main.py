@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+
 """Nightcrawler — Mobile Autonomous Pentest Agent entry point."""
 
 import asyncio
@@ -208,7 +209,7 @@ async def main():
     try:
         await loop.run()
     except KeyboardInterrupt:
-        print(f"\n  [STOP] Interrupted by operator.")
+        print("\n  [STOP] Interrupted by operator.")
     except Exception as e:
         import traceback
         print(f"\n  [FATAL] Unhandled error: {e}", flush=True)
