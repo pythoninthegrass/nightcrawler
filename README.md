@@ -2,7 +2,7 @@
 
 An autonomous penetration testing agent that runs entirely on a smartphone. Drop the phone on a network, walk away, and it discovers hosts, maps services, finds vulnerabilities, and generates a pentest report — all without cloud connectivity.
 
-```
+```txt
  ░█▄░█ █ █▀▀ █░█ ▀█▀ █▀▀ █▀█ ▄▀█ █░█░█ █░░ █▀▀ █▀█
  ░█░▀█ █ █▄█ █▀█ ░█░ █▄▄ █▀▄ █▀█ ▀▄▀▄▀ █▄▄ ██▄ █▀▄  v0.1.0
 
@@ -43,7 +43,7 @@ The agent operates like a patient human pentester — it rotates across hosts, d
 
 ## Architecture
 
-```
+```txt
 ┌──────────────────────────────────────────────────────────┐
 │                   PHONE (OnePlus 8)                       │
 │                                                           │
@@ -98,11 +98,13 @@ See [docs/FEATURES.md](docs/FEATURES.md) for the complete feature reference.
 ## Hardware
 
 ### Required
+
 - **Android phone** with [Kali NetHunter](https://www.kali.org/docs/nethunter/) (tested on OnePlus 8, Snapdragon 865)
 - **Root access** via [Magisk](https://github.com/topjohnwu/Magisk)
 - **12GB+ RAM** (model uses ~1.3GB, Android uses ~4GB, rest for tools)
 
 ### Optional
+
 - **USB WiFi adapter** for offline WiFi breach mode (Ralink RT3572 recommended)
 - **Custom kernel** with MAC80211 for monitor mode ([build guide](docs/KERNEL_BUILD_PROMPT.md))
 - **NVIDIA AGX** for offloading to a larger model over Tailscale
@@ -176,7 +178,7 @@ model:
 
 ## Project Structure
 
-```
+```txt
 nightcrawler/
 ├── main.py                  # Entry point
 ├── config.yaml              # Mission scope + model config
@@ -234,6 +236,7 @@ The agent uses a simple but effective loop:
 7. **Reset context** — clear conversation, keep persistent memory, repeat
 
 The 1.2B model has a ~50% command success rate (inherent to its size). The agent compensates with:
+
 - **Garbage detection** — 5-streak reset with varied few-shot examples
 - **Duplicate detection** — forces tool/target diversification
 - **Time-based stuck detection** — 5-minute backstop forces context reset

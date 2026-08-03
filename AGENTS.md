@@ -1,6 +1,7 @@
 # Nightcrawler - Mobile Autonomous Pentest Agent
 
 ## Project
+
 Nightcrawler is an autonomous penetration testing agent running on a OnePlus 8 with Kali NetHunter. It uses a local LFM2.5-1.2B-Instruct-Heretic model as its reasoning engine and a real command executor as its tool interface, with a scope enforcement proxy as the safety layer.
 
 - GitHub: github.com/garagehq/nightcrawler
@@ -10,6 +11,7 @@ Nightcrawler is an autonomous penetration testing agent running on a OnePlus 8 w
 - Thor deferred features: `docs/THOR_DEFERRED.md`
 
 ## CRITICAL: llama-server Rules
+
 - **NEVER start a second llama-server process** — always `pgrep llama-server` first
 - **Context window: 8192 tokens** — do not increase without explicit user approval
 - Dual/triple llama-server caused OOM (observed 2026-03-20 and 2026-03-21 with the older 3GB Qwen model; LFM2.5-1.2B is ~1.3GB but the never-run-two rule still applies)
@@ -24,15 +26,17 @@ Nightcrawler is an autonomous penetration testing agent running on a OnePlus 8 w
 - Emergency reboot from Kali: `echo b > /proc/sysrq-trigger`
 
 ## Device Info
+
 - Phone: OnePlus 8 (kebab), Snapdragon 865, Adreno 650 GPU
 - Kernel: 4.19.297-perf-g8228d522e928-dirty (custom-built from Nameless AOSP `thirteen` branch, MAC80211+WireGuard+nftables)
-- Kernel source: https://github.com/garagehq/kernel_oneplus_sm8250_nethunter
+- Kernel source: <https://github.com/garagehq/kernel_oneplus_sm8250_nethunter>
 - RAM: 12GB (shared between CPU and GPU)
 - GPU Driver: Qualcomm v819.2, Compiler E031.50.02.00 (Magisk module)
 - Chroot: Kali Linux at /data/local/nhsystem/kalifs
 - Termux: installed (used for OpenCL GPU builds)
 
 ## Two Worlds: Kali Chroot vs Android
+
 The phone has two separate execution environments sharing the same kernel + network:
 
 | | Kali Chroot | Android |
@@ -44,6 +48,7 @@ The phone has two separate execution environments sharing the same kernel + netw
 | GPU binaries | **CANNOT run** (bionic-linked) | llama-server, OpenCL |
 
 **Key rules:**
+
 - Binaries from one world can't run in the other (glibc vs bionic)
 - **Only way to execute Android-side from Kali**: `ssh -p 9022 shell@127.0.0.1 "command"`
 - `nsenter` does NOT work — SSH is the only bridge
@@ -55,6 +60,7 @@ The phone has two separate execution environments sharing the same kernel + netw
 - RAM budget: llama-server ~3.2GB + Android ~3-4GB = ~7GB used, leaving ~4-5GB for agent + tools
 
 ## SSH Access
+
 ```bash
 ssh -p 9022 shell@127.0.0.1      # Android shell (from Kali chroot)
 ssh -p 9022 shell@<tailscale-ip> # Android shell (from Tailscale)
@@ -62,6 +68,7 @@ ssh -p 8022 root@<tailscale-ip>  # Kali root shell (was port 22)
 ```
 
 ## Service Ports
+
 | Port | Service | Description |
 |------|---------|-------------|
 | 8022 | SSH     | Kali root shell (was 22, hardened) |
@@ -77,6 +84,7 @@ Android SSH: pubkey-only (password auth disabled).
 WebUI on 0.0.0.0 but stealth-filtered (rejects target network, spoofs nginx).
 
 ## Nightcrawler Stack
+
 ```
 Agent (main.py) → LLM (llama.cpp :8080) → REASONING + COMMAND
     ↓
@@ -88,6 +96,7 @@ Kali Linux tools (nmap, curl, smbclient, nxc, gobuster, dig, ...)
 ```
 
 ## Running
+
 ```bash
 # Start all services manually (after llama-server is healthy)
 kali-server-mcp --port 5000 &
@@ -108,9 +117,11 @@ webui are separate processes — the agent writes state to SQLite via
 during long LLM/nmap calls.
 
 ## GPU Inference (OpenCL)
-llama.cpp compiled in Termux with Adreno-optimized OpenCL kernels. Runs as root on Android side (not in chroot). From Kali chroot, agent reaches it at http://127.0.0.1:8080 (shared network namespace).
+
+llama.cpp compiled in Termux with Adreno-optimized OpenCL kernels. Runs as root on Android side (not in chroot). From Kali chroot, agent reaches it at <http://127.0.0.1:8080> (shared network namespace).
 
 ### Key constraints
+
 - **GPU power governor override** — Android throttles GPU ~6x on battery (587→305MHz GPU clock). Fixed with `scripts/gpu-governor.sh` — forces `performance` governor via sysfs, auto-reverts to `msm-adreno-tz` at ≤15% battery. Runs as part of Magisk watchdog block. Logs: `/data/local/tmp/var/log/gpu-governor.log`
 - **Context: 8192 tokens** — do not change without user approval
 - First run after reboot: ~3 min kernel JIT (cached after)
@@ -118,6 +129,7 @@ llama.cpp compiled in Termux with Adreno-optimized OpenCL kernels. Runs as root 
 - 4B Q8_0 fails: exceeds 1GB per-allocation limit. Use Q4_0 for 4B.
 
 ## Performance
+
 Production model is **LFM2.5-1.2B-Instruct-Heretic** (top row). The Qwen rows
 are legacy alternatives kept for reference.
 
@@ -128,6 +140,7 @@ are legacy alternatives kept for reference.
 | Qwen3.5-4B | Q4_0 | OpenCL GPU | 10.1 t/s | 2.0 t/s |
 
 ## Data Storage
+
 - **SQLite DB**: `logs/nightcrawler.db` — primary store (WAL mode, MAC-keyed hosts, multi-network)
 - **Host memories**: `host_memories` in SQLite state — auto-generated observations + analyst edits
 - **JSON compat**: `logs/findings.json`, `logs/timeline.jsonl`, `logs/commands.jsonl`
@@ -136,7 +149,9 @@ are legacy alternatives kept for reference.
 - **Memory export**: `GET /api/hosts/memories/export` — all host observations for Thor
 
 ## kali-server-mcp vs kali_executor.py
+
 Switched from custom `kali_executor.py` to the official `kali-server-mcp` package:
+
 - **API**: `POST /api/command` (not `/execute`) — proxy translates the response format
 - **Execution**: Uses `shlex.split` (not `shell=True`) — eliminates `/bin/sh` backtick errors
 - **Response**: Returns `{stdout, stderr, return_code, success, timed_out}`
@@ -144,10 +159,12 @@ Switched from custom `kali_executor.py` to the official `kali-server-mcp` packag
 - `kali_executor.py` still exists as a fallback but is not used in production
 
 ## Memory System (Host + Network)
+
 The agent auto-generates observations and injects them into the system prompt.
 Context resets after each command — memories provide persistent knowledge.
 
 ### Host Memory (per-host)
+
 - **Auto-extracted**: HTTP servers, SSH versions, SMB shares, filtered ports
 - **Status**: unknown → interesting → compromised (or dead-end)
 - **Tags**: auto-generated (pi-hole, ssh, smb, dns)
@@ -156,6 +173,7 @@ Context resets after each command — memories provide persistent knowledge.
 - **API**: `GET/PATCH /api/hosts/<mac>/memory`, `GET /api/hosts/memories/export`
 
 ### Network Memory (per-network)
+
 - **Scanned IPs**: tracks which IPs have been probed (prevents re-scanning)
 - **Observations**: auto + analyst (e.g., "Network has Pi-hole at .2")
 - **Injected**: NETWORK CONTEXT section in system prompt (max 100 tokens)
@@ -163,11 +181,13 @@ Context resets after each command — memories provide persistent knowledge.
 - **API**: `GET /api/networks/<id>/memory`, `PATCH /api/networks/<id>`
 
 ### Context Reset Strategy
+
 Context is cleared after each successful command. The system prompt is rebuilt
 fresh each turn with: phase prompt + host memory + network memory + C2 controls.
 This prevents context pollution while maintaining persistent knowledge.
 
 After each command, a random live host is suggested for the next turn:
+
 - 70% chance: host with known open ports (productive)
 - 30% chance: any random host (discovery)
 - Excludes: dead-end hosts, last 3 probed IPs, excluded hosts
@@ -177,6 +197,7 @@ get 2-3 consecutive commands without context reset. Playbook steps are fed
 as specific next-step commands. Context is preserved between turns.
 
 ## Auto-Blacklist Self
+
 On startup, the agent auto-blacklists all `excluded_hosts` from config.yaml
 (gateway + self IP) with a `self-` MAC prefix. These show on the web UI as
 blacklisted and are included in Thor exports. This prevents the agent from
@@ -184,7 +205,9 @@ scanning its own kali-mcp-server or the gateway — critical when Thor is in
 the pipeline so it doesn't red-team itself.
 
 ## C2 Interactive Features (Web UI)
+
 The web UI at `:8888` has full C2 controls:
+
 - **⭐ Star hosts**: Prioritize scanning for N iterations (PRIORITY TARGET in prompt)
 - **⛔ Blacklist hosts**: Skip entirely (BLACKLIST in prompt, strikethrough in UI)
 - **✎ Network edit**: Custom names and notes per network
@@ -198,7 +221,9 @@ The web UI at `:8888` has full C2 controls:
 - **Command search**: Search history by keyword
 
 ## Red Team Strategy (Patient Rotation)
+
 The agent operates like a stealthy adversary with infinite time:
+
 - **Rotate hosts** — never hit the same host twice in a row
 - **One small action per turn** — single curl, single dig, single port check
 - **Build knowledge slowly** — host memory accumulates across many visits over hours
@@ -210,7 +235,9 @@ The agent operates like a stealthy adversary with infinite time:
   but the agent acts per-host based on accumulated knowledge
 
 ### Random Host Selection (weighted)
+
 After each command, the agent suggests a random next target:
+
 - **70% chance**: host with known open ports (productive)
 - **30% chance**: any random host (discovery)
 - **Excludes**: dead-end hosts (from memory), last 3 probed IPs, excluded hosts
@@ -222,7 +249,9 @@ get 2-3 consecutive commands without context reset. Playbook steps are fed
 as specific next-step commands. Context is preserved between turns.
 
 ### Smart Targeting (exploit phase)
+
 In EXPLOIT phase, host selection is priority-weighted:
+
 - **60%**: high-priority (confirmed access — shares, Pi-hole, Samba, dnsmasq)
 - **30%**: medium (has ports but untested)
 - **10%**: low (3+ failed attacks)
@@ -232,7 +261,9 @@ In EXPLOIT phase, host selection is priority-weighted:
 - Confirmed access (SMB shares, DNS responding) keeps hosts high-priority
 
 ## Training Data Capture
+
 Successful interactions are captured for model finetuning:
+
 - **Location**: `training_data/` (20GB budget, auto-rotation)
 - **Format**: JSONL with ChatML, per-day per-phase files
 - **Captures**: system prompt + messages + response + command output
@@ -242,11 +273,13 @@ Successful interactions are captured for model finetuning:
 - Expected impact: format compliance from ~50% to 85%+ with finetuning
 
 ## Claude Code Cron Monitor
+
 The project uses a Claude Code cron job (every 5 minutes) that autonomously
 monitors the agent, fixes bugs, and logs observations. This is a key part of
 the development workflow — the cron catches issues faster than a human can.
 
 ### Cron Prompt Template
+
 ```
 You are the Nightcrawler autonomous pentest agent monitor. Check in every 5 minutes.
 
@@ -270,7 +303,8 @@ PIPELINE QUALITY CHECKS:
 Fix code if needed, restart service, append to finetuning log.
 ```
 
-### What the cron tracks each checkin:
+### What the cron tracks each checkin
+
 - Service health (5 services + llama-server count)
 - Agent RSS (memory leak detection, threshold 200MB)
 - llama-server RSS (KV cache growth, warn at >5GB)
@@ -281,7 +315,8 @@ Fix code if needed, restart service, append to finetuning log.
 - Host rotation diversity (unique hosts / total commands)
 - Pipeline violations (fake paths, stealth, dead hosts)
 
-### Known memory behavior:
+### Known memory behavior
+
 - llama-server KV cache grows ~200MB/hour (3.4→5.3GB over ~8h observed 2026-03-21)
 - Magisk watchdog restarts llama-server every ~2h (random 1.75-2.5h, changed 2026-03-22)
 - Restart drops RSS from ~5GB to ~3.4GB, frees ~2GB system memory
@@ -292,10 +327,13 @@ Fix code if needed, restart service, append to finetuning log.
 - The health check tracks llama-server RSS and warns at >5GB
 
 ### Cron prompt (copy-paste ready): `docs/cron-monitor-prompt.md`
+
 ### Cron context file: `docs/cron-context.md`
+
 ### Finetuning log: `nightcrawler-finetuning-logs.md` (gitignored, runtime data)
 
 ## Key Architecture Decisions
+
 - **Few-shot prompting** is essential — the 1.2B model follows examples, not instructions
 - **Phase-aware seed**: RECON uses nmap, ENUMERATE uses service probes, EXPLOIT uses 50/50 cred-test/enumerate
 - **Garbage detection** with 5-streak context reset prevents model spiral (all rejection paths, including validation)
@@ -318,8 +356,10 @@ Fix code if needed, restart service, append to finetuning log.
 - **No _execute retries for app errors** — only transport errors retry (prevents 3x audit entries)
 
 ## Exploit Toolkit (phase 3)
+
 The EXPLOIT phase mixes credential testing with continued enumeration (50/50).
 Available tools verified on Kali NetHunter:
+
 - **CVE lookup**: `searchsploit [service] [version]` — offline exploit-db
 - **Vuln scanning**: `nmap --script=smb-vuln*`, `--script=vulners`, `--script=http-vuln*`
 - **Credential testing**: `nxc ssh/smb/telnet/vnc/ftp/mysql` with defaults + wordlists
@@ -331,6 +371,7 @@ Available tools verified on Kali NetHunter:
 - Prompt is hot-reloadable: edit `prompts/phase3_exploit.md`
 
 ### Exploit Pipeline v5 (updated 2026-03-22)
+
 - **CVE DB**: 24,956 entries in `data/cve_exploits.json` — replaces searchsploit
 - **Playbooks**: **27 multi-step attack chains** in `data/playbooks.json` — **direct execution bypassing LLM**
   - 11 original (SMB, Pi-hole, DNS, Samba, HTTP, VNC, SSH, Telnet, FTP, Redis, MySQL)
@@ -359,14 +400,18 @@ Available tools verified on Kali NetHunter:
 - See `docs/FEATURES.md` for full details
 
 ## Cross-Process State (agent ↔ webui)
+
 The agent and webui daemon are separate processes. State is shared via:
+
 - **SQLite**: `agent_ui_state` key in state table (phase, mode, uptime, stats)
 - **update_state()** in agent loop persists to SQLite each iteration
 - **api_state()** in webui reads from SQLite + disk findings
 - This was added 2026-03-21 to fix the UI showing stale phase after EXPLOIT transition
 
 ## Pipeline Validation (agent/loop.py)
+
 Commands pass through 5 validation gates before execution:
+
 1. **Dead-end skip**: hosts marked dead-end in host_memory are skipped
 2. **Same-host enforcement**: rejects if target IP == last executed IP
 3. **_is_valid_command()**: rejects fake paths, placeholders, -T3+, missing target IP
@@ -388,6 +433,7 @@ the executor gives the model real feedback ("Connection refused") and it adapts.
 Silent rejection loops are worse than wasted turns.
 
 ## LFM2.5-1.2B Model Behavior Notes (LFM2.5-1.2B-Instruct-Heretic Q8_0)
+
 - **Heretic-abliterated** — no safety refusals (verified: complies with port scans, SMB enum, credential attacks, web probes), no re-prompting needed
 - ~50% command success rate (inherent limit of 1.2B parameters)
 - Produces garbage/number sequences ~25% of turns
@@ -404,6 +450,7 @@ Silent rejection loops are worse than wasted turns.
 - **Ignores host suggestions** — model often follows up on last-seen host instead of suggested target. Same-host enforcement now forces rotation.
 
 ## Dynamic Network Detection (`agent/net_detect.py`)
+
 - `config.yaml` uses `networks: ["auto"]` and `excluded_hosts: ["auto"]`
 - Auto-detects subnet, prefix, our IP, gateway from `wlan0` interface
 - Supports 192.168.x, 10.x, 172.16-31.x — any private network
@@ -412,12 +459,14 @@ Silent rejection loops are worse than wasted turns.
 - Scope proxy auto-configures from wlan0, auto-excludes gateway + self IP
 
 ## Seed Sweep & Host Discovery
+
 - `nmap -sn` at agent startup, upserts ALL discovered hosts to SQLite DB
 - Periodic re-sweep every ~200 commands to discover new hosts that joined
 - Passive capture (tcpdump) every ~50 commands for mDNS/NBNS/DHCP/ARP
 - All discovered hosts immediately persisted with correct `network_id`
 
 ## Per-Network Feed & Pagination
+
 - Feed entries tagged with `network_id` when created via `push_feed()`
 - Switching networks shows only that network's feed entries
 - Displays last 200 entries, count shows "200+" when more exist
@@ -425,6 +474,7 @@ Silent rejection loops are worse than wasted turns.
 - Network deletion clears feed entries for that network
 
 ## Network Deletion
+
 - `DELETE /api/networks/<id>` — triple-confirmation UI
 - Auto-kills running agent, pauses watchdog (pause file), cleans all data
 - Deletes: hosts, vulns, creds, commands, feed entries, network record
@@ -432,6 +482,7 @@ Silent rejection loops are worse than wasted turns.
 - Toast notifications: success, watchdog pause, restart warning
 
 ## Development Notes
+
 - Agent auto-detects network: resumes at correct phase based on existing findings
 - Startup phase detection: EXPLOIT if hosts>=10 + ports>=15, ENUMERATE if hosts>=3, else RECON
 - Thor (AGX 128GB) is optional — agent operates fully standalone
@@ -443,6 +494,7 @@ Silent rejection loops are worse than wasted turns.
 - Training capture: 700+ examples across recon/enumerate/exploit phases
 
 ## Boot Sequence (Magisk service.sh + watchdog_block.sh)
+
 All services auto-start after reboot. **Do NOT manually start services — wait 10 min.**
 
 1. +10s: Android SSH (9022)
@@ -460,6 +512,7 @@ All services auto-start after reboot. **Do NOT manually start services — wait 
 9. Every ~2h (random 1.75-2.5h): llama-server scheduled restart (PID file, SIGKILL, process count verify)
 
 **After reboot**: everything comes up automatically within 10 min.
+
 - Boot scripts: `scripts/service.sh` (Magisk) → `scripts/watchdog_block.sh` → `scripts/autostart.sh`
 - `watchdog_block.sh` is copied to `/data/local/tmp/watchdog_block.sh` and sourced by Magisk service.sh
 - `autostart.sh` runs inside the Kali chroot via bash (not busybox sh — busybox subshells silently fail)
@@ -469,6 +522,7 @@ If the webui auto-starts with a USB adapter plugged in, the `/api/offline/state`
 auto-detect the adapter, load the driver (8821cu/8188eu), and enter offline mode.
 
 ## Magisk Modules
+
 | Module | Purpose |
 |--------|---------|
 | openssh (v9.9p2) | Persistent SSH on ports 9022 + 22 |
@@ -477,6 +531,7 @@ auto-detect the adapter, load the driver (8821cu/8188eu), and enter offline mode
 | tailscaled | Tailscale VPN |
 
 ## Web UI
+
 - URL: https://<tailscale-hostname>:8888 (self-signed cert)
 - Daemon: `bash scripts/webui-daemon.sh {start|stop|status|restart}`
 - Features: clickable host cards, port details, scan history, network selector, Thor export
@@ -486,6 +541,7 @@ auto-detect the adapter, load the driver (8821cu/8188eu), and enter offline mode
 - **Separate process**: agent communicates via SQLite (`agent/ui_bridge.py`), webui reads
 
 ## Agent Watchdog (`scripts/agent-watchdog.sh`)
+
 - Monitors agent log file modification time every 60s
 - If log hasn't been updated in 40 min → agent is hung → kills and restarts
 - Also restarts if agent process is not running at all
@@ -495,10 +551,12 @@ auto-detect the adapter, load the driver (8821cu/8188eu), and enter offline mode
 - **Does NOT replace the cron monitor** — the cron does diagnosis + code fixes, the watchdog just handles process-level hangs
 
 ## Offline Mode (WiFi Attack Pipeline)
+
 Pwnagotchi-inspired autonomous WiFi breach mode. When device has no WiFi or user
 enters offline mode, the UI transforms to show WiFi scanning/capture/cracking.
 
 ### Architecture
+
 - **External USB WiFi adapter** (wlan1) for monitor mode — internal QCA6390 cannot do monitor mode
 - Internal wlan0 stays connected (Tailscale/SSH stay up during scanning)
 - Pipeline: scan (manual) → select target/ROE (manual) → capture (auto) → crack (auto) → connect (auto)
@@ -517,6 +575,7 @@ enters offline mode, the UI transforms to show WiFi scanning/capture/cracking.
 - Simulation mode (`NC_OFFLINE_SIM=1` or `/api/offline/simulate`) for testing
 
 ### Key Files
+
 - `agent/offline_manager.py` — pipeline state machine, subprocess management
 - `webui/server.py` — 14 `/api/offline/*` endpoints
 - `webui/templates/index.html` — offline UI panels (amber theme, Pwnagotchi face)
@@ -525,8 +584,9 @@ enters offline mode, the UI transforms to show WiFi scanning/capture/cracking.
 - `tests/test_offline_ui.py` — 38 Playwright UI tests
 
 ### USB WiFi Adapter Requirement
+
 - **Custom kernel v4** (4.19.297-perf-g8228d522e928-dirty) built from Nameless AOSP source with MAC80211=y
-- Kernel source: https://github.com/garagehq/kernel_oneplus_sm8250_nethunter
+- Kernel source: <https://github.com/garagehq/kernel_oneplus_sm8250_nethunter>
 - Stock kernel (4.19.157-perf+) has no MAC80211 — custom kernel required
 - MODULE_SIG and MODVERSIONS both disabled for easy module loading
 - Boot backup at `/sdcard/nightcrawler-kernels/boot-backup-20260324.img`
@@ -546,6 +606,7 @@ enters offline mode, the UI transforms to show WiFi scanning/capture/cracking.
 - Kernel headers at `/lib/modules/$(uname -r)/build/` for on-device compilation
 
 ### Offline Mode Auto-Detection
+
 - `/api/offline/state` checks `is_wifi_connected()` — if wlan0 has no IP, auto-enters offline mode
 - Also auto-detects USB adapter plug-in → loads driver → enters offline mode
 - Once offline, stays offline until pipeline completes (connect auto-transitions to online)
@@ -553,12 +614,15 @@ enters offline mode, the UI transforms to show WiFi scanning/capture/cracking.
 - Both watchdogs paused via `/tmp/nc-agent-pause` and `/data/local/tmp/nc-llama-pause`
 
 ### Watchdog Pause Files
+
 - `/tmp/nc-agent-pause` — pauses agent-watchdog.sh (checked every 60s)
 - `/data/local/tmp/nc-llama-pause` — pauses llama-watchdog.sh (checked every 30s)
 - Created by `force_offline()`, removed by `force_online()` / `connect()`
 
 ## IMPORTANT: Always Restart Agent After Code Changes
+
 After modifying agent/loop.py, agent/*.py, or main.py:
+
 1. `pkill -9 -f "python3 main.py"`
 2. `nohup python3 main.py >> /tmp/nc-agent.log 2>&1 &`
 3. Verify: `sleep 3 && kill -0 $(pgrep -f "python3 main.py") && echo OK`
@@ -567,7 +631,9 @@ of "agent down" during development. The WebUI daemon also needs restart for
 server.py changes: `bash scripts/webui-daemon.sh restart`
 
 ## IMPORTANT: Clean Up Test Artifacts
+
 After ANY testing that creates data in the DB (test networks, test hosts, demo data):
+
 - **Delete test networks**: `DELETE FROM networks WHERE network_id NOT IN ('<real_id>')`
 - **Delete test hosts**: `DELETE FROM hosts WHERE network NOT IN (SELECT network_id FROM networks)`
 - **Delete test memories**: Check `host_memories` state for test MAC addresses
@@ -575,6 +641,7 @@ After ANY testing that creates data in the DB (test networks, test hosts, demo d
 - Never leave fake data (HomeWifi, ClientOffice, FF:EE:DD:CC:BB:AA, etc.) in production DB
 
 ## Known Issues
+
 - **Kali SSH (8022) dies unless /dev is bind-mounted (2026-07-11)**: `/data` is mounted
   `nodev`, so a device node created on the chroot's `/dev` (e.g. `/dev/null`) does not
   function. sshd's `daemon()` reopens stdio onto `/dev/null` and exits with
